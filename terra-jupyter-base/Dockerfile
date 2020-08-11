@@ -118,7 +118,7 @@ RUN apt update \
    && /usr/local/bin/python3 -m pip install --upgrade pip
 
 RUN pip3 -V \
- && pip3 install notebook==5.7.8 \
+ && pip3 install notebook==6.1.1 \
  && pip3 install jupyter==1.0.0 \
  && pip3 install python-datauri \
  && pip3 install jupyterlab==0.35.4 \
