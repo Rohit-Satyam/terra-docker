@@ -8,7 +8,7 @@ We do our work on a feature branch based on master. When you open a pull request
 
 This is also a good opportunity to verify that all the appropriate image versions were bumped. It is important to keep in mind which images extend from where ([Image Dependecies](https://github.com/DataBiosphere/terra-docker#image-dependencies)). Make sure to bump the version of the image you are changing and update its reference in all images that extend from it.
 
-You can also run `amm ./updateVersions.sc <image-name>` to upgrade derived images.
+You can also run `amm ./updateVersions.sc <image name> <release note>` to upgrade derived images.
 
 ## External Contributions
 
