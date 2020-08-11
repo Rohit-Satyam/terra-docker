@@ -15,6 +15,7 @@ interp.load.ivy(
 
 import cats.effect.IO
 import java.nio.file.Paths
+import java.nio.file.Path
 
 import io.circe.parser._
 import io.circe.Printer
@@ -57,11 +58,11 @@ def modifyImageData(imagesToUpdate: List[String]): Json => Json =
   }
 
 /**
- * In repo root dir, run `amm ./updateVersion.sc terra-jupyter-base 0.0.13`
+ * In repo root dir, run `amm ./updateVersion.sc terra-jupyter-base 'update notebook to 6.1.1'`
  * @param updatedImage e.g. "terra-jupyter-base"
  */
 @main
-def main(updatedImage: String, updatedImageNewVersion: String): Unit = {
+def main(updatedImage: String, updatedImageReleaseNote: String): Unit = {
   val imagesToUpdate: List[String] = updatedImage match {
     case "terra-jupyter-base" => List(
       "terra-jupyter-bioconductor",
@@ -83,17 +84,27 @@ def main(updatedImage: String, updatedImageNewVersion: String): Unit = {
     _ <- (fs2.Stream.emit(newConfig.asJson.printWith(Printer.spaces4)).covary[IO]
       .through(text.utf8Encode)
       .through(io.file.writeAll(Paths.get("./config/conf.json"), blocker))).compile.drain
+
+    // Update updatedImage's changelog
+    updatedImageChangeLogFile = Paths.get(s"${updatedImage}/CHANGELOG.md")
+    updatedImageNewVersion <- updateChangeLogFile(
+      updatedImage,
+      s"""- ${updatedImageReleaseNote}
+        |""".stripMargin,
+      updatedImageChangeLogFile
+    )
     // Update `Dockerfile` and `CHANGELOG.md`
     _ <- imagesToUpdate.filterNot(_.contains(updatedImage)).traverse {
       image =>
-        val dockerFileToUpdate = s"${image}/Dockerfile"
-        val changelogFile = s"${image}/CHANGELOG.md"
+        val dockerFileToUpdate = Paths.get(s"${image}/Dockerfile")
+        val changelogFile = Paths.get(s"./${image}/CHANGELOG.md")
         for {
-          lines <- (io.file.readAll[IO] (Paths.get(s"./${dockerFileToUpdate}"), blocker, 4096)
+          lines <- (io.file.readAll[IO] (dockerFileToUpdate, blocker, 4096)
                     .through(text.utf8Decode)
                     .through(text.lines)).compile.toList
-          newLines = lines.map {
-            s =>
+          newLines = lines.zipWithIndex.map {
+            lineWithIndex =>
+              val s = lineWithIndex._1
               if(s.contains("FROM") && !s.contains("AS")) {
                 val firstSplit = s.split(":")
                 val splited = firstSplit(1).split("\\.")
@@ -103,31 +114,35 @@ def main(updatedImage: String, updatedImageNewVersion: String): Unit = {
                 val secondSplit = firstSplit(1).split(" ")
                 val splited = secondSplit(0).split("\\.")
                 s"${firstSplit(0)}:${splited(0)}.${splited(1)}.${splited(2).toInt + 1} AS python\n"
-              } else if(s == "\n")
+              } else if(lineWithIndex._2 == lines.length - 1)
                 s
               else s"${s}\n"
           }
           _ <- (fs2.Stream.emits(newLines).covary[IO].through(text.utf8Encode)
-            .through(io.file.writeAll(Paths.get(s"./${dockerFileToUpdate}"), blocker))).compile.drain
-          // Update CHANGELOG.md
-          originalFileContent <- (io.file.readAll[IO] (Paths.get(s"./${changelogFile}"), blocker, 4096)
-                                    .through(text.utf8Decode)).compile.string
-          firstLine = originalFileContent.split("\n")(0)
-          newV = newVersion(firstLine.split(" ")(1))
-          newFileContent =
-            s"""## ${newV} - ${Instant.now()}
-              |
-              |- Update `${updatedImage}` to `${updatedImageNewVersion}`
-              |
-              |Image URL: `us.gcr.io/broad-dsp-gcr-public/${image}:${newV}`
-              |
-              |${originalFileContent}
-              |""".stripMargin
-          _ <- (fs2.Stream.emit(newFileContent).covary[IO].through(text.utf8Encode)
-            .through(io.file.writeAll(Paths.get(s"./${changelogFile}"), blocker))).compile.drain
+            .through(io.file.writeAll(dockerFileToUpdate, blocker))).compile.drain
+
+          _ <- updateChangeLogFile(image, s"- Update `${updatedImage}` to `${updatedImageNewVersion}\n  - ${updatedImageReleaseNote}", changelogFile)
         } yield ()
     }
   } yield ()
 
   res.unsafeRunSync
 }
+
+// returns the new version String of this file
+def updateChangeLogFile(image: String, msg: String, path: Path): IO[String] = for {
+  originalFileContent <- (io.file.readAll[IO] (path, blocker, 4096)
+                                .through(text.utf8Decode)).compile.string
+  firstLine = originalFileContent.split("\n")(0)
+  newV = newVersion(firstLine.split(" ")(1))
+  newFileContent =
+  s"""## ${newV} - ${Instant.now()}
+     |
+     |${msg}
+     |
+     |Image URL: `us.gcr.io/broad-dsp-gcr-public/${image}:${newV}`
+     |
+     |${originalFileContent}""".stripMargin
+  _ <- (fs2.Stream.emit(newFileContent).covary[IO].through(text.utf8Encode)
+    .through(io.file.writeAll(path, blocker))).compile.drain
+} yield newV
