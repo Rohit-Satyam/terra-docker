@@ -1,3 +1,10 @@
+## 1.0.5 - 2020-08-11T14:19:41.326Z
+
+- Update `terra-jupyter-base` to `0.0.13
+  - update notebook to 6.1.1
+
+Image URL: `us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:1.0.5`
+
 ## 1.0.4 - 07/27/2020
 
 - Update `terra-jupyter-base` image version to `0.0.12`

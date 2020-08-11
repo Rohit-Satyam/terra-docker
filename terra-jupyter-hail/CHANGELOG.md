@@ -1,3 +1,10 @@
+## 0.0.18 - 2020-08-11T14:19:41.270Z
+
+- Update `terra-jupyter-base` to `0.0.13
+  - update notebook to 6.1.1
+
+Image URL: `us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.18`
+
 ## 0.0.17 - 07/27/2020
 
 - Update `terra-jupyter-python` image to `0.0.14`
